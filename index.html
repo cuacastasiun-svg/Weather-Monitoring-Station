@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Weather Station - Polinela</title>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-blue-glow: rgba(0, 243, 255, 0.3);
+            --dark-bg: #030508;
+            --panel-bg: #090d16;
+            --border-neon: rgba(0, 243, 255, 0.4);
+            --text-main: #ffffff;
+            --text-muted: #8ca3c4;
+            --accent-pink: #ff3366;
+            --accent-yellow: #ffea00;
+            --accent-green: #00ff66;
+            --accent-purple: #bb00ff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { display: flex; height: 100vh; background-color: var(--dark-bg); color: var(--text-main); overflow: hidden; }
+        
+        /* Sidebar Dark Neon */
+        .sidebar { width: 260px; background-color: var(--panel-bg); border-right: 2px solid var(--neon-blue); box-shadow: 5px 0 20px var(--neon-blue-glow); padding-top: 20px; z-index: 10; display: flex; flex-direction: column; }
+        
+        /* Sidebar Logo & Title Section */
+        .sidebar-brand { text-align: center; margin-bottom: 25px; padding: 0 15px; }
+        .sidebar-brand img { width: 75px; height: auto; margin-bottom: 8px; filter: drop-shadow(0 0 8px var(--neon-blue)); }
+        .sidebar-brand h1 { color: var(--text-main); font-size: 0.95rem; letter-spacing: 1px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 8px var(--neon-blue); }
+        
+        .menu-btn { width: 100%; padding: 15px 25px; border: none; background: none; color: var(--text-muted); text-align: left; cursor: pointer; font-size: 0.95rem; transition: 0.3s; border-left: 4px solid transparent; display: flex; align-items: center; gap: 15px; }
+        .menu-btn:hover { color: #fff; background-color: rgba(0, 243, 255, 0.08); }
+        .menu-btn.active { color: var(--neon-blue); background-color: rgba(0, 243, 255, 0.15); border-left: 4px solid var(--neon-blue); font-weight: bold; text-shadow: 0 0 8px var(--neon-blue); }
+        
+        /* Main Content */
+        .main-content { flex: 1; padding: 25px 30px; overflow-y: auto; background: radial-gradient(circle at center, #070e1a 0%, #030508 100%); }
+        .page { display: none; animation: fadeIn 0.4s ease; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Grid Layout (5 Panels) */
+        .dashboard-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px; }
+        .panel { background-color: var(--panel-bg); border: 1px solid var(--border-neon); border-radius: 12px; padding: 20px; position: relative; box-shadow: 0 0 15px rgba(0, 243, 255, 0.1); transition: 0.3s; }
+        .panel:hover { box-shadow: 0 0 25px var(--neon-blue-glow); border-color: var(--neon-blue); }
+        .panel::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: var(--neon-blue); box-shadow: 0 0 8px var(--neon-blue); border-top-left-radius: 12px; border-top-right-radius: 12px; }
+        
+        /* Panel Header (Perbesar Logo) */
+        .panel-header { font-size: 0.85rem; font-weight: bold; color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; }
+        .panel-header .header-title { display: flex; align-items: center; gap: 12px; color: var(--text-main); }
+        .panel-header .header-title i { font-size: 1.4rem; }
+        .panel-header > i { font-size: 1.2rem; }
+
+        /* Neon Glow Icon Colors */
+        .icon-temp { color: var(--accent-pink); filter: drop-shadow(0 0 8px var(--accent-pink)); }
+        .icon-hum { color: var(--neon-blue); filter: drop-shadow(0 0 8px var(--neon-blue)); }
+        .icon-wind { color: var(--accent-green); filter: drop-shadow(0 0 8px var(--accent-green)); }
+        .icon-light { color: var(--accent-yellow); filter: drop-shadow(0 0 8px var(--accent-yellow)); }
+        .icon-rain { color: var(--accent-purple); filter: drop-shadow(0 0 8px var(--accent-purple)); }
+
+        /* Widget: Thermometer */
+        .thermo-container { display: flex; align-items: center; justify-content: space-around; height: 150px; }
+        .thermo-scale { font-size: 0.7rem; color: var(--text-muted); display: flex; flex-direction: column; justify-content: space-between; height: 110px; text-align: right; margin-right: 10px;}
+        .thermo-body { display: flex; flex-direction: column; align-items: center; position: relative; }
+        .thermo-tube { width: 12px; height: 110px; background: #111d2e; border-radius: 6px; position: relative; overflow: hidden; border: 1px solid var(--border-neon); }
+        .thermo-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: linear-gradient(to top, var(--accent-pink), #ff0055); box-shadow: 0 0 10px var(--accent-pink); transition: height 1s ease-out; }
+        .thermo-bulb { width: 30px; height: 30px; background: var(--accent-pink); border-radius: 50%; margin-top: -12px; z-index: 2; box-shadow: 0 0 12px var(--accent-pink); border: 2px solid #fff;}
+        .widget-value-box { display: flex; flex-direction: column; align-items: center; }
+        .widget-val { font-size: 2rem; font-weight: bold; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
+        .widget-unit { font-size: 0.8rem; color: var(--text-muted); }
+
+        /* Widget: Humidity Gauge */
+        .gauge-container { display: flex; justify-content: center; align-items: center; height: 150px; position: relative; }
+        .circular-chart { display: block; margin: 0 auto; max-width: 100%; max-height: 130px; filter: drop-shadow(0 0 8px var(--neon-blue-glow)); }
+        .circle-bg { fill: none; stroke: #111d2e; stroke-width: 3; }
+        .circle { fill: none; stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray 1s ease-out; stroke: var(--neon-blue); }
+        .gauge-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+
+        /* Widget: Compass (Wind) */
+        .compass-container { display: flex; align-items: center; justify-content: space-around; height: 150px; }
+        .compass { width: 110px; height: 110px; border-radius: 50%; border: 2px solid var(--border-neon); position: relative; display: flex; justify-content: center; align-items: center; background: radial-gradient(circle, #0f1c2e 0%, #050b14 100%); box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.2);}
+        .compass-label { position: absolute; font-size: 0.6rem; color: var(--text-muted); font-weight: bold;}
+        .c-n { top: 4px; } .c-s { bottom: 4px; } .c-e { right: 6px; } .c-w { left: 6px; }
+        .c-ne { top: 12px; right: 12px; } .c-nw { top: 12px; left: 12px; } .c-se { bottom: 12px; right: 12px; } .c-sw { bottom: 12px; left: 12px; }
+        .needle-container { position: absolute; width: 100%; height: 100%; transition: transform 1s cubic-bezier(0.4, 2.5, 0.4, 0.5); transform: rotate(0deg); }
+        .needle { position: absolute; bottom: 50%; left: calc(50% - 2px); width: 4px; height: 42%; background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); border-radius: 4px 4px 0 0; }
+        .compass-center { width: 10px; height: 10px; background: #fff; border-radius: 50%; position: absolute; z-index: 2; box-shadow: 0 0 8px #fff;}
+
+        /* Widget: Light Bar */
+        .light-container { display: flex; justify-content: space-around; align-items: center; height: 150px; }
+        .light-scale { font-size: 0.6rem; color: var(--text-muted); display: flex; flex-direction: column; justify-content: space-between; height: 120px; text-align: right; }
+        .light-bar-outer { width: 12px; height: 120px; border: 1px solid var(--border-neon); border-radius: 6px; position: relative; overflow: hidden; background: #111d2e; }
+        .light-bar-inner { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: var(--accent-yellow); box-shadow: 0 0 10px var(--accent-yellow); transition: height 1s ease-out; }
+
+        /* Widget: Rainfall Bars */
+        .rain-container { display: flex; justify-content: space-around; align-items: flex-end; height: 150px; padding-bottom: 5px; }
+        .rain-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .rain-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
+        .rain-bar-bg { width: 18px; height: 95px; border: 1px solid var(--border-neon); border-radius: 4px; position: relative; overflow: hidden; background: #111d2e; }
+        .rain-bar-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: var(--accent-purple); box-shadow: 0 0 8px var(--accent-purple); transition: height 1s ease-out; }
+        .rain-val-text { font-size: 0.75rem; font-weight: bold; color: var(--text-main); }
+
+        /* Tables & Charts (Page 2 & 3) */
+        .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .chart-wrap { background: var(--panel-bg); border: 1px solid var(--border-neon); border-radius: 12px; padding: 20px; box-shadow: 0 0 15px rgba(0, 243, 255, 0.1); }
+        
+        .table-container { background: var(--panel-bg); border: 1px solid var(--border-neon); border-radius: 12px; overflow: auto; max-height: 500px; box-shadow: 0 0 15px rgba(0, 243, 255, 0.1); }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 12px 20px; border-bottom: 1px solid rgba(0, 243, 255, 0.15); font-size: 0.9rem; }
+        th { background-color: #0f1c2e; color: var(--neon-blue); position: sticky; top: 0; z-index: 1; text-shadow: 0 0 5px var(--neon-blue); }
+        tr:hover { background-color: rgba(0, 243, 255, 0.05); }
+
+        .btn-action { background-color: transparent; color: var(--neon-blue); border: 2px solid var(--neon-blue); padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: bold; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px; box-shadow: 0 0 10px var(--neon-blue-glow); transition: 0.3s; }
+        .btn-action:hover { background-color: var(--neon-blue); color: var(--dark-bg); box-shadow: 0 0 20px var(--neon-blue); }
+
+        h2.page-title { color: var(--neon-blue); text-shadow: 0 0 10px var(--neon-blue); margin-bottom: 20px; font-weight: 500; font-size: 1.2rem; }
+
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <!-- Logo Polinela & Judul di Pojok Kiri Atas -->
+        <div class="sidebar-brand">
+            <img src="logo_polinela.png" alt="Logo Polinela">
+            <h1>Weather Monitoring Station</h1>
+        </div>
+        
+        <button class="menu-btn active" onclick="showPage('page1', this)"><i class="fa-solid fa-border-all"></i> Data Realtime</button>
+        <button class="menu-btn" onclick="showPage('page2', this)"><i class="fa-solid fa-chart-line"></i> Grafik Parameter</button>
+        <button class="menu-btn" onclick="showPage('page3', this)"><i class="fa-solid fa-table-list"></i> Histori & Export</button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        
+        <!-- PAGE 1: Dashboard Visual 5 Parameter -->
+        <div id="page1" class="page active">
+            <h2 class="page-title">Monitoring Realtime</h2>
+            <div class="dashboard-grid">
+                
+                <!-- 1. Temperature -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="header-title"><i class="fa-solid fa-temperature-high icon-temp"></i> Temperature</div>
+                        <i class="fa-solid fa-chart-area icon-temp" style="opacity:0.5"></i>
+                    </div>
+                    <div class="thermo-container">
+                        <div class="thermo-scale">
+                            <span>40</span><span>30</span><span>20</span><span>10</span><span>0</span>
+                        </div>
+                        <div class="thermo-body">
+                            <div class="thermo-tube"><div class="thermo-fill" id="ui-temp-bar"></div></div>
+                            <div class="thermo-bulb"></div>
+                        </div>
+                        <div class="widget-value-box">
+                            <span class="widget-val" id="val-temp" style="color:var(--accent-pink)">--</span>
+                            <span class="widget-unit">°C</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Humidity -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="header-title"><i class="fa-solid fa-droplet icon-hum"></i> Humidity</div>
+                        <i class="fa-solid fa-water icon-hum" style="opacity:0.5"></i>
+                    </div>
+                    <div class="gauge-container">
+                        <svg viewBox="0 0 36 36" class="circular-chart">
+                            <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                            <path class="circle" id="ui-hum-arc" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                        </svg>
+                        <div class="gauge-text">
+                            <div class="widget-val" id="val-hum" style="color:var(--neon-blue)">--</div>
+                            <div class="widget-unit">%RH</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Wind Speed -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="header-title"><i class="fa-solid fa-wind icon-wind"></i> Wind Speed</div>
+                        <i class="fa-solid fa-compass icon-wind" style="opacity:0.5"></i>
+                    </div>
+                    <div class="compass-container">
+                        <div class="compass">
+                            <span class="compass-label c-n">N</span><span class="compass-label c-ne">NE</span>
+                            <span class="compass-label c-e">E</span><span class="compass-label c-se">SE</span>
+                            <span class="compass-label c-s">S</span><span class="compass-label c-sw">SW</span>
+                            <span class="compass-label c-w">W</span><span class="compass-label c-nw">NW</span>
+                            <div class="needle-container" id="ui-wind-needle">
+                                <div class="needle"></div>
+                            </div>
+                            <div class="compass-center"></div>
+                        </div>
+                        <div class="widget-value-box">
+                            <span class="widget-val" id="val-wind" style="color:var(--accent-green)">--</span>
+                            <span class="widget-unit">m/s</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Solar / Light -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="header-title"><i class="fa-solid fa-sun icon-light"></i> Solar / Light</div>
+                        <i class="fa-solid fa-lightbulb icon-light" style="opacity:0.5"></i>
+                    </div>
+                    <div class="light-container">
+                        <div class="light-scale">
+                            <span>100%</span><span>80%</span><span>60%</span><span>40%</span><span>20%</span><span>0%</span>
+                        </div>
+                        <div class="light-bar-outer">
+                            <div class="light-bar-inner" id="ui-light-bar"></div>
+                        </div>
+                        <div class="widget-value-box">
+                            <span class="widget-val" id="val-light" style="color:var(--accent-yellow)">--</span>
+                            <span class="widget-unit">Lux</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Rainfall -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="header-title"><i class="fa-solid fa-cloud-rain icon-rain"></i> Rainfall</div>
+                        <i class="fa-solid fa-umbrella icon-rain" style="opacity:0.5"></i>
+                    </div>
+                    <div class="rain-container">
+                        <div class="rain-col">
+                            <span class="rain-label">Daily</span>
+                            <div class="rain-bar-bg"><div class="rain-bar-fill" id="ui-rain-daily"></div></div>
+                            <span class="rain-val-text" id="val-rain">0.00 mm</span>
+                        </div>
+                        <div class="rain-col">
+                            <span class="rain-label">Monthly</span>
+                            <div class="rain-bar-bg"><div class="rain-bar-fill" style="height:0%"></div></div>
+                            <span class="rain-val-text">0.00 mm</span>
+                        </div>
+                        <div class="rain-col">
+                            <span class="rain-label">Annual</span>
+                            <div class="rain-bar-bg"><div class="rain-bar-fill" style="height:0%"></div></div>
+                            <span class="rain-val-text">0.00 mm</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- PAGE 2: Grafik Data -->
+        <div id="page2" class="page">
+            <h2 class="page-title">Grafik Pergerakan Parameter</h2>
+            <div class="charts-grid">
+                <div class="chart-wrap"><canvas id="chartTemp"></canvas></div>
+                <div class="chart-wrap"><canvas id="chartHum"></canvas></div>
+                <div class="chart-wrap"><canvas id="chartLight"></canvas></div>
+                <div class="chart-wrap"><canvas id="chartRain"></canvas></div>
+                <div class="chart-wrap"><canvas id="chartWind"></canvas></div>
+            </div>
+        </div>
+
+        <!-- PAGE 3: Histori Data -->
+        <div id="page3" class="page">
+            <h2 class="page-title">Histori Log Data & Export</h2>
+            <button class="btn-action" onclick="downloadCSV()">
+                <i class="fa-solid fa-download"></i> Unduh ke Excel (CSV)
+            </button>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Waktu</th>
+                            <th>Suhu (°C)</th>
+                            <th>Kelembapan (%)</th>
+                            <th>Cahaya (Lux)</th>
+                            <th>Hujan (mm)</th>
+                            <th>Angin (m/s)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body">
+                        <!-- Data masuk ke sini -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- NAVIGASI ANTAR PAGE ---
+        function showPage(pageId, element) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            element.classList.add('active');
+        }
+
+        // --- KONFIGURASI GRAFIK TEMA DARK NEON ---
+        Chart.defaults.color = '#8ca3c4';
+        Chart.defaults.borderColor = 'rgba(0, 243, 255, 0.15)';
+        Chart.defaults.font.family = "'Segoe UI', sans-serif";
+
+        function createChart(canvasId, label, color) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: label, borderColor: color, backgroundColor: color + '25', data: [], borderWidth: 2, fill: true, tension: 0.4, pointRadius: 3 }] },
+                options: { responsive: true, plugins: { legend: { display: true, labels: {color: '#ffffff'} } }, scales: { x: { grid: { color: 'rgba(0,243,255,0.05)' } }, y: { grid: { color: 'rgba(0,243,255,0.05)' }, beginAtZero: true } } }
+            });
+        }
+
+        const chartTemp = createChart('chartTemp', 'Suhu Udara (°C)', '#ff3366');
+        const chartHum = createChart('chartHum', 'Kelembapan (%)', '#00f3ff');
+        const chartLight = createChart('chartLight', 'Cahaya (Lux)', '#ffea00');
+        const chartRain = createChart('chartRain', 'Curah Hujan (mm)', '#bb00ff');
+        const chartWind = createChart('chartWind', 'Kecepatan Angin (m/s)', '#00ff66');
+
+        // --- FUNGSI UPDATE DATA (FIREBASE READY) ---
+        function updateDashboard(suhu, kelembapan, cahaya, hujan, angin, windDir = 45) {
+            const waktu = new Date().toLocaleTimeString('id-ID');
+
+            // 1. Update Nilai Angka
+            document.getElementById('val-temp').innerText = parseFloat(suhu).toFixed(1);
+            document.getElementById('val-hum').innerText = parseInt(kelembapan);
+            document.getElementById('val-light').innerText = parseInt(cahaya);
+            document.getElementById('val-rain').innerText = parseFloat(hujan).toFixed(2) + " mm";
+            document.getElementById('val-wind').innerText = parseFloat(angin).toFixed(1);
+
+            // 2. Update Indikator Visual UI
+            let tempPercent = (suhu / 50) * 100;
+            if(tempPercent > 100) tempPercent = 100;
+            document.getElementById('ui-temp-bar').style.height = tempPercent + '%';
+
+            document.getElementById('ui-hum-arc').setAttribute('stroke-dasharray', `${kelembapan}, 100`);
+
+            document.getElementById('ui-wind-needle').style.transform = `rotate(${windDir}deg)`;
+
+            let lightPercent = (cahaya / 5000) * 100;
+            if(lightPercent > 100) lightPercent = 100;
+            document.getElementById('ui-light-bar').style.height = lightPercent + '%';
+
+            let rainPercent = (hujan / 50) * 100;
+            if(rainPercent > 100) rainPercent = 100;
+            document.getElementById('ui-rain-daily').style.height = rainPercent + '%';
+
+            // 3. Update Grafik
+            const charts = [chartTemp, chartHum, chartLight, chartRain, chartWind];
+            const newDatas = [suhu, kelembapan, cahaya, hujan, angin];
+
+            charts.forEach((chart, index) => {
+                if (chart.data.labels.length > 12) {
+                    chart.data.labels.shift();
+                    chart.data.datasets[0].data.shift();
+                }
+                chart.data.labels.push(waktu);
+                chart.data.datasets[0].data.push(newDatas[index]);
+                chart.update();
+            });
+
+            // 4. Update Tabel Histori
+            const historyBody = document.getElementById('history-body');
+            const newRow = `<tr>
+                <td>${waktu}</td>
+                <td>${suhu}</td>
+                <td>${kelembapan}</td>
+                <td>${cahaya}</td>
+                <td>${hujan}</td>
+                <td>${angin}</td>
+            </tr>`;
+            historyBody.insertAdjacentHTML('afterbegin', newRow);
+        }
+
+        // --- FUNGSI DOWNLOAD CSV ---
+        function downloadCSV() {
+            let csv = 'Waktu,Suhu Udara (°C),Kelembapan Udara (%),Intensitas Cahaya (Lux),Curah Hujan (mm),Kecepatan Angin (m/s)\n';
+            let rows = document.querySelectorAll("#history-body tr");
+            if (rows.length === 0) { alert("Belum ada data untuk diunduh!"); return; }
+            rows.forEach(row => {
+                let cols = row.querySelectorAll("td");
+                let rowData = [];
+                cols.forEach(col => rowData.push(col.innerText));
+                csv += rowData.join(",") + "\n";
+            });
+            let blob = new Blob([csv], { type: 'text/csv' });
+            let url = window.URL.createObjectURL(blob);
+            let a = document.createElement('a');
+            a.setAttribute('hidden', '');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'Log_Data_Polinela_Weather.csv');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        /* 
+        =======================================================
+        INTEGRASI FIREBASE
+        =======================================================
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.x.x/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.x.x/firebase-database.js";
+
+        const firebaseConfig = { ... };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        
+        onValue(ref(db, 'SensorCuaca'), (snapshot) => {
+            const data = snapshot.val();
+            if(data) {
+                updateDashboard(data.suhu, data.kelembapan, data.cahaya, data.hujan, data.angin, 45);
+            }
+        });
+        =======================================================
+        */
+    </script>
+</body>
+</html>
